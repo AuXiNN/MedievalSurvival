@@ -101,5 +101,5 @@ AssetOrigin:
   productId: 213197
   packageName: Unity Terrain - URP Demo Scene
   packageVersion: 1.0.3
-  assetPath: Assets/TerrainDemoScene_URP/Prefabs/Trees/Conifer/Textures/Confier_Cap_Color.png
+  assetPath: Assets/TerrainDemoScene_URP/Prefabs/UI/Trees/Conifer/Textures/Confier_Cap_Color.png
   uploadId: 727820

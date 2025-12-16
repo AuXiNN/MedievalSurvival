@@ -101,5 +101,5 @@ AssetOrigin:
   productId: 213197
   packageName: Unity Terrain - URP Demo Scene
   packageVersion: 1.0.3
-  assetPath: Assets/TerrainDemoScene_URP/Prefabs/Trees/Pines/Pine_C/Textures/Pine_C_Billboard_Color.png
+  assetPath: Assets/TerrainDemoScene_URP/Prefabs/UI/Trees/Pines/Pine_C/Textures/Pine_C_Billboard_Color.png
   uploadId: 727820
