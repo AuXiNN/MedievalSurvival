@@ -101,5 +101,5 @@ AssetOrigin:
   productId: 213197
   packageName: Unity Terrain - URP Demo Scene
   packageVersion: 1.0.3
-  assetPath: Assets/TerrainDemoScene_URP/Prefabs/Trees/Pines/Pine_D/Textures/Bark_Color.png
+  assetPath: Assets/TerrainDemoScene_URP/Prefabs/UI/Trees/Pines/Pine_D/Textures/Bark_Color.png
   uploadId: 727820
