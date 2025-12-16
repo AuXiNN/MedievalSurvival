@@ -1,15 +1,8 @@
 fileFormatVersion: 2
-guid: a90bc55e66c2b0445beb585de04cf121
+guid: 9c63a38d58bcb4580b6bcdd83d4d03ab
 NativeFormatImporter:
   externalObjects: {}
-  mainObjectFileID: 15600000
+  mainObjectFileID: 0
   userData: 
   assetBundleName: 
   assetBundleVariant: 
-AssetOrigin:
-  serializedVersion: 1
-  productId: 213197
-  packageName: Unity Terrain - URP Demo Scene
-  packageVersion: 1.0.3
-  assetPath: Assets/TerrainDemoScene_URP/Terrain/Data/Terrain_0_2_5f735b10-59bc-418b-b24d-4385eb3a186d.asset
-  uploadId: 727820
