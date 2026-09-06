@@ -11,7 +11,7 @@ using TMPro;
 /// with a Back button. Matches the Main Menu's bronze/gold Cinzel styling by cloning an
 /// existing menu button, so hover/click sounds and colours come along for free.
 ///
-/// Usage: open Assets/Scenes/MainMenu.unity, then
+/// Usage: open Assets/_Game/Scenes/MainMenu.unity, then
 /// Tools > Medieval Survival > Build How To Play. Save the scene afterwards.
 ///
 /// Re-runnable: it deletes the previous button/panel first, so tweak the Controls table
@@ -44,7 +44,7 @@ public static class HowToPlayBuilder
         if (mainMenu == null)
         {
             EditorUtility.DisplayDialog("Build How To Play",
-                "No MainMenu component in the open scene. Open Assets/Scenes/MainMenu.unity first.", "OK");
+                "No MainMenu component in the open scene. Open Assets/_Game/Scenes/MainMenu.unity first.", "OK");
             return;
         }
 

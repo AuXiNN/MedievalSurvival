@@ -7,7 +7,7 @@ using TMPro;
 /// Attaches <see cref="TitleTextEffect"/> to the Main Menu's game-title text (metallic
 /// gradient + sweeping glint + breathing glow + float + drop shadow + reveal).
 ///
-/// Usage: open Assets/Scenes/MainMenu.unity, then
+/// Usage: open Assets/_Game/Scenes/MainMenu.unity, then
 /// Tools > Medieval Survival > Add Title Effect. Save the scene afterwards.
 /// </summary>
 public static class TitleEffectBuilder

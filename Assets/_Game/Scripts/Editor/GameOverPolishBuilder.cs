@@ -11,7 +11,7 @@ using TMPro;
 /// so it never wraps to 2 lines, and lays everything out as a single centered vertical stack
 /// dead in the middle of the screen.
 ///
-/// Usage: open the gameplay scene (New Scene.unity), then
+/// Usage: open the gameplay scene (Assets/_Game/Scenes/Gameplay.unity), then
 /// Tools > Medieval Survival > Polish Game Over Screen. Save the scene afterwards.
 /// </summary>
 public static class GameOverPolishBuilder
