@@ -75,6 +75,9 @@ namespace StarterAssets
         [Tooltip("For locking the camera position on all axis")]
         public bool LockCameraPosition = false;
 
+        [Tooltip("When true, walk/run/jump input is ignored (e.g. while blocking). Camera still moves.")]
+        public bool MovementLocked = false;
+
         // cinemachine
         private float _cinemachineTargetYaw;
         private float _cinemachineTargetPitch;
@@ -155,6 +158,15 @@ namespace StarterAssets
         private void Update()
         {
             _hasAnimator = TryGetComponent(out _animator);
+
+            // Blocking (or any other gameplay lock) freezes locomotion input, but gravity,
+            // grounded checks and the camera keep running.
+            if (MovementLocked)
+            {
+                _input.move = Vector2.zero;
+                _input.sprint = false;
+                _input.jump = false;
+            }
 
             JumpAndGravity();
             GroundedCheck();

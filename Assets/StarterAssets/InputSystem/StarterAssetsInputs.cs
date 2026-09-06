@@ -53,6 +53,11 @@ namespace StarterAssets
 
 		public void LookInput(Vector2 newLookDirection)
 		{
+			// Apply the player's sensitivity/invert-Y settings (see GameSettings / Settings panel).
+			newLookDirection *= GameSettings.MouseSensitivity;
+			if (GameSettings.InvertY)
+				newLookDirection.y = -newLookDirection.y;
+
 			look = newLookDirection;
 		}
 
