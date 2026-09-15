@@ -1,5 +1,22 @@
 using UnityEngine;
 
+public enum GameDifficulty { Easy, Normal, Hard }
+
+/// <summary>Per-difficulty multipliers applied to the wave system (see GameManager).</summary>
+public readonly struct DifficultyScale
+{
+    public readonly float waveGap;    // × time between waves
+    public readonly float spawnGap;   // × time between individual spawns in a wave
+    public readonly float enemyCount; // × enemies per wave
+
+    public DifficultyScale(float waveGap, float spawnGap, float enemyCount)
+    {
+        this.waveGap = waveGap;
+        this.spawnGap = spawnGap;
+        this.enemyCount = enemyCount;
+    }
+}
+
 /// <summary>
 /// Central, scene-independent store for player settings (audio, graphics, controls).
 /// Loads from PlayerPrefs on boot and applies engine-level settings (volume, quality,
@@ -19,6 +36,7 @@ public static class GameSettings
     private const string KeyResHeight = "Settings_ResHeight";
     private const string KeySensitivity = "Settings_MouseSensitivity";
     private const string KeyInvertY = "Settings_InvertY";
+    private const string KeyDifficulty = "Settings_Difficulty";
 
     // ---- Current values ----
     public static float MasterVolume { get; private set; } = 1f;
@@ -30,6 +48,15 @@ public static class GameSettings
     public static int ResolutionHeight { get; private set; }
     public static float MouseSensitivity { get; private set; } = 1f;
     public static bool InvertY { get; private set; } = false;
+    public static GameDifficulty Difficulty { get; private set; } = GameDifficulty.Normal;
+
+    /// <summary>Wave-timing multipliers for the current difficulty. Read by GameManager.</summary>
+    public static DifficultyScale SpawnScale => Difficulty switch
+    {
+        GameDifficulty.Easy => new DifficultyScale(1.5f, 1.4f, 0.7f),
+        GameDifficulty.Hard => new DifficultyScale(0.65f, 0.6f, 1.4f),
+        _                   => new DifficultyScale(1f, 1f, 1f),
+    };
 
     private static bool _loaded;
 
@@ -46,6 +73,8 @@ public static class GameSettings
         Apply();
     }
 
+    // Reads every setting from PlayerPrefs, falling back to sensible defaults (often the
+    // current engine/screen state) the very first time the game ever runs on this machine.
     public static void Load()
     {
         MasterVolume = PlayerPrefs.GetFloat(KeyMaster, 1f);
@@ -57,6 +86,7 @@ public static class GameSettings
         ResolutionHeight = PlayerPrefs.GetInt(KeyResHeight, Screen.currentResolution.height);
         MouseSensitivity = PlayerPrefs.GetFloat(KeySensitivity, 1f);
         InvertY = PlayerPrefs.GetInt(KeyInvertY, 0) == 1;
+        Difficulty = (GameDifficulty)PlayerPrefs.GetInt(KeyDifficulty, (int)GameDifficulty.Normal);
         _loaded = true;
     }
 
@@ -71,6 +101,7 @@ public static class GameSettings
             Fullscreen ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed);
     }
 
+    // Wired to the Settings panel's "Restore Defaults" button.
     public static void ResetToDefaults()
     {
         MasterVolume = 1f;
@@ -82,6 +113,7 @@ public static class GameSettings
         ResolutionHeight = Screen.currentResolution.height;
         MouseSensitivity = 1f;
         InvertY = false;
+        Difficulty = GameDifficulty.Normal;
 
         Apply();
         SaveAll();
@@ -89,6 +121,17 @@ public static class GameSettings
     }
 
     // ---- Setters: update the value, apply it live, persist it, and notify listeners ----
+    // Every setter below follows the same 3-4 step pattern: clamp/validate the incoming value,
+    // apply it to the relevant engine API immediately (so the change is felt right away),
+    // save it to PlayerPrefs (so it survives restarting the game), then fire OnSettingsChanged
+    // so any open settings UI can refresh and show the new value.
+
+    public static void SetDifficulty(GameDifficulty value)
+    {
+        Difficulty = value;
+        PlayerPrefs.SetInt(KeyDifficulty, (int)value);
+        OnSettingsChanged?.Invoke();
+    }
 
     public static void SetMasterVolume(float value)
     {

@@ -30,14 +30,17 @@ public class UIManager : MonoBehaviour
     [Header("Pickup Message")]
     [SerializeField] private TextMeshProUGUI pickupMessageText;
 
+    // Sets up the singleton so any script can reach the HUD via UIManager.Instance.
     void Awake()
     {
         if (Instance == null)
             Instance = this;
         else
-            Destroy(gameObject);
+            Destroy(gameObject); // enforce a single UIManager - destroy any duplicate
     }
 
+    // Hides every panel that should start closed, wires up the end-screen buttons, and
+    // applies the HUD's custom styling.
     void Start()
     {
         // Hide game over panel at start
@@ -59,11 +62,103 @@ public class UIManager : MonoBehaviour
 
         if (mainMenuButton != null)
             mainMenuButton.onClick.AddListener(GoToMainMenu);
+
+        StyleHudCounters();
+        StyleHealthAndTimer();
     }
 
+    /// <summary>
+    /// Moves the health bar and the Strong Attack cooldown bar to the bottom-left corner and
+    /// makes them noticeably larger. Done in code so the scene asset isn't touched.
+    /// </summary>
+    private void StyleHealthAndTimer()
+    {
+        // Health bar - bottom-left, wide and tall.
+        if (healthSlider != null)
+        {
+            RectTransform rt = healthSlider.GetComponent<RectTransform>();
+            if (rt != null)
+            {
+                rt.anchorMin = rt.anchorMax = new Vector2(0f, 0f);
+                rt.pivot = new Vector2(0f, 0f);
+                rt.sizeDelta = new Vector2(600f, 56f);
+                rt.anchoredPosition = new Vector2(36f, 40f);
+            }
+        }
+
+        // Strong Attack cooldown bar - just above the health bar, slightly shorter.
+        if (strongAttackTimerRoot != null)
+        {
+            RectTransform rt = strongAttackTimerRoot.GetComponent<RectTransform>();
+            if (rt != null)
+            {
+                rt.anchorMin = rt.anchorMax = new Vector2(0f, 0f);
+                rt.pivot = new Vector2(0f, 0f);
+                rt.sizeDelta = new Vector2(480f, 34f);
+                rt.anchoredPosition = new Vector2(36f, 112f);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Fixes the score readout clipping its last digit on big numbers (1000+) and gives the
+    /// score / wave text a gold, medieval look instead of flat white. Done in code so the
+    /// scene asset doesn't need touching.
+    /// </summary>
+    private void StyleHudCounters()
+    {
+        // Score: sits top-right. Anchor + right-align it so large numbers grow left, on-screen,
+        // and never wrap.
+        if (scoreText != null)
+        {
+            RectTransform rt = scoreText.rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(1f, 1f);
+            rt.pivot = new Vector2(1f, 1f);
+            rt.sizeDelta = new Vector2(420f, 60f);
+            rt.anchoredPosition = new Vector2(-28f, -18f);
+            scoreText.alignment = TextAlignmentOptions.Right;
+            scoreText.enableWordWrapping = false;
+            scoreText.overflowMode = TextOverflowModes.Overflow;
+            StylizeCounter(scoreText);
+        }
+
+        // Wave: sits top-left.
+        if (waveText != null)
+        {
+            RectTransform rt = waveText.rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0f, 1f);
+            rt.pivot = new Vector2(0f, 1f);
+            rt.sizeDelta = new Vector2(420f, 60f);
+            rt.anchoredPosition = new Vector2(28f, -18f);
+            waveText.alignment = TextAlignmentOptions.Left;
+            waveText.enableWordWrapping = false;
+            waveText.overflowMode = TextOverflowModes.Overflow;
+            StylizeCounter(waveText);
+        }
+    }
+
+    // Applies a shared gold-with-dark-outline look to a HUD counter (score/wave text).
+    private static void StylizeCounter(TextMeshProUGUI t)
+    {
+        t.fontStyle = FontStyles.Bold;
+        t.fontSize = 32f;
+        t.characterSpacing = 5f;
+
+        // one flat, warm gold - reads cleanly over bright terrain or dark sky
+        t.enableVertexGradient = false;
+        t.color = new Color(1f, 0.82f, 0.30f, 1f);
+
+        // strong dark outline for contrast against any background
+        Material mat = t.fontMaterial; // getter returns a per-instance material, shared asset untouched
+        mat.EnableKeyword(ShaderUtilities.Keyword_Outline);
+        mat.SetFloat(ShaderUtilities.ID_OutlineWidth, 0.22f);
+        mat.SetColor(ShaderUtilities.ID_OutlineColor, new Color(0.08f, 0.04f, 0f, 1f));
+    }
+
+    // Wired to the end-screen's "Main Menu" button.
     public void GoToMainMenu()
     {
-        Time.timeScale = 1f;
+        Time.timeScale = 1f; // un-pause before leaving, so the menu scene doesn't start frozen
         SceneManager.LoadScene(0); // MainMenu is scene index 0 in Build Settings
     }
 
@@ -84,18 +179,21 @@ public class UIManager : MonoBehaviour
         }
     }
 
+    // Called by GameManager whenever the score changes.
     public void UpdateScoreText(int score)
     {
         if (scoreText != null)
             scoreText.text = "Score: " + score;
     }
 
+    // Called by GameManager at the start of each wave.
     public void UpdateWaveText(int wave)
     {
         if (waveText != null)
             waveText.text = "Wave: " + wave;
     }
 
+    // Briefly flashes a "Wave X Complete!" banner, then hides it automatically.
     public void ShowWaveComplete(int wave)
     {
         if (waveCompleteText != null)
@@ -112,6 +210,7 @@ public class UIManager : MonoBehaviour
             waveCompleteText.gameObject.SetActive(false);
     }
 
+    // Called by GameManager when the player dies.
     public void ShowGameOver(int finalScore)
     {
         ShowEndScreen("GAME OVER", finalScore);
@@ -123,6 +222,7 @@ public class UIManager : MonoBehaviour
         ShowEndScreen("VICTORY!", finalScore);
     }
 
+    // Shared logic for both the Game Over and Victory screens - same panel, different title.
     private void ShowEndScreen(string title, int finalScore)
     {
         if (gameOverPanel != null)
@@ -138,9 +238,10 @@ public class UIManager : MonoBehaviour
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
-        Time.timeScale = 0f;
+        Time.timeScale = 0f; // freeze gameplay behind the end screen
     }
 
+    // Hides the Game Over / Victory panel - called when restarting.
     public void HideGameOver()
     {
         if (gameOverPanel != null)
@@ -187,6 +288,7 @@ public class UIManager : MonoBehaviour
         Invoke(nameof(HidePickupMessage), 2f);
     }
 
+    // Called automatically 2 seconds after ShowPickupMessage via Invoke.
     private void HidePickupMessage()
     {
         if (pickupMessageText != null)

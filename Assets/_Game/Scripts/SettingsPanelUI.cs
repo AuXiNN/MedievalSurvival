@@ -56,6 +56,8 @@ public class SettingsPanelUI : MonoBehaviour
     private List<(int width, int height)> _resolutions;
     private bool _suppressCallbacks;
 
+    // Runs every time the panel is opened: rebuilds the dropdown options, loads the current
+    // settings into every control, then hooks up all the change listeners.
     private void OnEnable()
     {
         BuildQualityOptions();
@@ -64,6 +66,7 @@ public class SettingsPanelUI : MonoBehaviour
         WireEvents();
     }
 
+    // Connects every slider/dropdown/toggle/button to its handler method below.
     private void WireEvents()
     {
         // Remove-then-add so OnEnable can safely run more than once without double-firing.
@@ -130,6 +133,7 @@ public class SettingsPanelUI : MonoBehaviour
         _suppressCallbacks = false;
     }
 
+    // Populates the quality dropdown with whatever quality levels are defined in Project Settings.
     private void BuildQualityOptions()
     {
         if (qualityDropdown == null) return;
@@ -137,6 +141,7 @@ public class SettingsPanelUI : MonoBehaviour
         qualityDropdown.AddOptions(new List<string>(QualitySettings.names));
     }
 
+    // Populates the resolution dropdown from the curated PresetResolutions list above.
     private void BuildResolutionOptions()
     {
         if (resolutionDropdown == null) return;
@@ -153,17 +158,24 @@ public class SettingsPanelUI : MonoBehaviour
         resolutionDropdown.AddOptions(labels);
     }
 
+    // Formats a 0-1 volume value as a whole-number percentage label.
     private static void SetVolumeLabel(TextMeshProUGUI label, float value)
     {
         if (label != null) label.text = Mathf.RoundToInt(value * 100f) + "%";
     }
 
+    // Formats the mouse sensitivity value as e.g. "1.5x".
     private void SetSensitivityLabel(float value)
     {
         if (sensitivityValueText != null) sensitivityValueText.text = value.ToString("0.0") + "x";
     }
 
     // ---- Callbacks ----
+    // Each of these fires when its UI control changes. They all update their own label first
+    // (so the number on screen is always current), then forward the new value to GameSettings -
+    // unless _suppressCallbacks is set, which happens while RefreshFromGameSettings() is
+    // programmatically setting these same controls, so loading saved settings doesn't
+    // immediately re-save/re-apply them as if the player had just changed them.
 
     private void OnMasterChanged(float v)
     {
@@ -221,12 +233,14 @@ public class SettingsPanelUI : MonoBehaviour
 
     // ---- Buttons ----
 
+    // Wired to the "Restore Defaults" button - resets GameSettings, then reloads the UI to match.
     private void RestoreDefaults()
     {
         GameSettings.ResetToDefaults();
         RefreshFromGameSettings();
     }
 
+    // Wired to the "Back" button - saves settings to disk and swaps back to the main panel.
     public void CloseSettings()
     {
         GameSettings.SaveAll();

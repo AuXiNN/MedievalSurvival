@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -12,10 +13,6 @@ public class WaveDefinition
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
-
-    private Vector3 playerStartPosition;
-    private Quaternion playerStartRotation;
-    private GameObject playerObject;
 
     [Header("Game State")]
     public bool isGameOver = false;
@@ -36,79 +33,108 @@ public class GameManager : MonoBehaviour
 
     private EnemySpawner enemySpawner;
 
+    // Wave-timing multipliers from the chosen difficulty (see GameSettings / the menu selector).
+    private DifficultyScale scale = new DifficultyScale(1f, 1f, 1f);
+
+    // Sets up the singleton and makes sure the game starts unpaused (Time.timeScale can be
+    // left at 0 from a previous Game Over/Pause if this scene was reloaded).
     void Awake()
-    {   
+    {
         if (Instance == null)
             Instance = this;
         else
-            Destroy(gameObject);
-        
-        Time.timeScale = 1f; 
+            Destroy(gameObject); // enforce a single GameManager - destroy any duplicate
+
+        Time.timeScale = 1f;
     }
 
+    // Reads the chosen difficulty, applies it to the spawner, and kicks off the wave loop.
     void Start()
     {
         enemySpawner = FindObjectOfType<EnemySpawner>();
-    
-        // Hardcode the exact spawn position
-        playerStartPosition = new Vector3(744.8f, 5.45f, 636.6f);
-        playerStartRotation = Quaternion.Euler(0, 93.698f, 0); // ← use the original Y rotation
-    
-        playerObject = GameObject.FindGameObjectWithTag("Player");
-    
-        StartNextWave();
-    }
-    
-    public void StartNextWave()
-    {
-        if (isGameOver) return;
 
-        currentWave++;
-
-        WaveDefinition wave = GetWaveDefinition(currentWave);
-        Debug.Log($"Wave {currentWave} started! Melee: {wave.meleeCount}, Archers: {wave.archerCount}");
-
+        scale = GameSettings.SpawnScale; // difficulty multipliers picked on the main menu
+        Debug.Log($"Difficulty: {GameSettings.Difficulty}  " +
+                  $"(wave gap x{scale.waveGap}, spawn gap x{scale.spawnGap}, count x{scale.enemyCount})");
         if (enemySpawner != null)
-            enemySpawner.StartWave(wave.meleeCount, wave.archerCount);
+            enemySpawner.SetSpawnGapMultiplier(scale.spawnGap);
 
-        if (UIManager.Instance != null)
-            UIManager.Instance.UpdateWaveText(currentWave);
+        StartCoroutine(RunWaves()); // begin spawning wave 1
+    }
+
+    /// <summary>
+    /// The entire wave loop as one readable coroutine: spawn a wave, wait for the player to
+    /// clear it, take a breather, repeat - forever, until the player dies. Uses Coroutines
+    /// with WaitForSeconds / WaitUntil instead of scattered Invoke / InvokeRepeating timers,
+    /// so the whole flow reads top-to-bottom in one place.
+    /// </summary>
+    private IEnumerator RunWaves()
+    {
+        yield return new WaitForSeconds(2f); // let the scene settle before wave 1
+
+        while (!isGameOver)
+        {
+            currentWave++;
+            WaveDefinition wave = GetWaveDefinition(currentWave);
+            Debug.Log($"=== Wave {currentWave} begins: {wave.meleeCount} melee, {wave.archerCount} archers ===");
+
+            if (UIManager.Instance != null)
+                UIManager.Instance.UpdateWaveText(currentWave);
+
+            // 1. place every enemy in the wave, one at a time
+            if (enemySpawner != null)
+                yield return enemySpawner.SpawnWaveRoutine(wave.meleeCount, wave.archerCount);
+
+            // 2. wait until the player has killed them all
+            yield return new WaitUntil(() =>
+                isGameOver || enemySpawner == null || enemySpawner.LiveEnemyCount == 0);
+
+            if (isGameOver) yield break;
+
+            Debug.Log($"=== Wave {currentWave} cleared ===");
+            if (UIManager.Instance != null)
+                UIManager.Instance.ShowWaveComplete(currentWave);
+
+            // 3. breather before the next wave (longer on Easy, shorter on Hard)
+            yield return new WaitForSeconds(timeBetweenWaves * scale.waveGap);
+        }
     }
 
     /// <summary>
     /// Returns the hand-tuned composition for the first few waves, then keeps escalating
     /// forever past that - waves never run out, only the player dying ends a run.
+    /// The counts are then scaled by the chosen difficulty (fewer on Easy, more on Hard).
     /// </summary>
     private WaveDefinition GetWaveDefinition(int wave)
     {
+        WaveDefinition baseWave;
         if (wave <= waves.Length)
-            return waves[wave - 1];
+        {
+            baseWave = waves[wave - 1];
+        }
+        else
+        {
+            int extraWaves = wave - waves.Length;
+            baseWave = new WaveDefinition
+            {
+                meleeCount = waves[waves.Length - 1].meleeCount + extraWaves,
+                archerCount = waves[waves.Length - 1].archerCount + extraWaves / 2
+            };
+        }
 
-        int extraWaves = wave - waves.Length;
         return new WaveDefinition
         {
-            meleeCount = waves[waves.Length - 1].meleeCount + extraWaves,
-            archerCount = waves[waves.Length - 1].archerCount + extraWaves / 2
+            meleeCount = Mathf.Max(1, Mathf.RoundToInt(baseWave.meleeCount * scale.enemyCount)),
+            archerCount = Mathf.RoundToInt(baseWave.archerCount * scale.enemyCount)
         };
-    }
-
-    public void OnWaveComplete()
-    {
-        if (isGameOver) return;
-
-        Debug.Log("Wave " + currentWave + " complete!");
-        Invoke(nameof(StartNextWave), timeBetweenWaves);
-
-        if (UIManager.Instance != null)
-            UIManager.Instance.ShowWaveComplete(currentWave);
     }
 
     /// <summary>Called once every wave in the list has been cleared.</summary>
     public void Victory()
     {
-        if (isGameOver) return;
+        if (isGameOver) return; // don't run this twice
 
-        isGameOver = true;
+        isGameOver = true; // this also stops RunWaves()'s while loop from spawning any more waves
         Debug.Log("VICTORY! All waves cleared!");
 
         ClearPowerUps();
@@ -117,6 +143,7 @@ public class GameManager : MonoBehaviour
             UIManager.Instance.ShowVictory(score);
     }
 
+    // Called whenever the player earns points (e.g. killing an enemy) - keeps the HUD in sync.
     public void AddScore(int points)
     {
         score += points;
@@ -126,15 +153,17 @@ public class GameManager : MonoBehaviour
             UIManager.Instance.UpdateScoreText(score);
     }
 
+    // Called by PlayerHealth when the player's health reaches zero.
     public void GameOver()
     {
-        if (isGameOver) return;
+        if (isGameOver) return; // don't run this twice
 
         isGameOver = true;
         Debug.Log("GAME OVER!");
 
+        StopAllCoroutines(); // stop the wave loop
         ClearPowerUps();
-        Time.timeScale = 0f;
+        Time.timeScale = 0f; // freeze the game behind the Game Over screen
 
         if (UIManager.Instance != null)
             UIManager.Instance.ShowGameOver(score);
@@ -147,60 +176,17 @@ public class GameManager : MonoBehaviour
             Destroy(powerUp.gameObject);
     }
 
-  public void RestartGame()
-{
-    Time.timeScale = 1f;
-    Cursor.lockState = CursorLockMode.Locked;
-    Cursor.visible = false;
-    
-    isGameOver = false;
-    currentWave = 0;
-    score = 0;
-
-    // Reset player position by name
-   // Reset player position
-    GameObject playerParent = GameObject.Find("PlayerArmature");
-    if (playerParent != null)
+    /// <summary>
+    /// Wired to the Game Over screen's Restart button. Reloads the current scene through
+    /// SceneManagement - one call rebuilds the whole level (player, enemies, UI, waves,
+    /// power-ups) back to its starting state, so there is nothing to reset by hand.
+    /// </summary>
+    public void RestartGame()
     {
-        CharacterController cc = playerParent.GetComponentInChildren<CharacterController>();
-        if (cc != null) cc.enabled = false;
-    
-        playerParent.transform.position = playerStartPosition;
-        playerParent.transform.rotation = playerStartRotation; // ← this resets rotation too
-    
-        if (cc != null) cc.enabled = true;
+        Time.timeScale = 1f; // reloading the scene does not reset the time scale on its own
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
-
-    // Reset player health
-    PlayerHealth playerHealth = FindObjectOfType<PlayerHealth>();
-    if (playerHealth != null)
-        playerHealth.ResetHealth();
-
-    // Reset animator
-    Animator playerAnimator = FindObjectOfType<PlayerHealth>()?.GetComponent<Animator>();
-    if (playerAnimator != null)
-    {
-        playerAnimator.Rebind();
-        playerAnimator.Update(0f);
-    }
-
-    // Destroy all enemies
-    foreach (GameObject enemy in GameObject.FindGameObjectsWithTag("Enemy"))
-        Destroy(enemy);
-
-    // Clear any power-ups left on the ground from the previous run
-    ClearPowerUps();
-
-    // Restart waves
-    enemySpawner = FindObjectOfType<EnemySpawner>();
-    StartNextWave();
-
-    // Update UI
-    if (UIManager.Instance != null)
-    {
-        UIManager.Instance.UpdateScoreText(0);
-        UIManager.Instance.UpdateWaveText(0);
-        UIManager.Instance.HideGameOver();
-    }
-}
 }

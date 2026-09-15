@@ -12,6 +12,7 @@ public class EnemyHealth : MonoBehaviour
     [SerializeField] private GameObject worldHealthBarRoot;
 
     [Header("Effects")]
+    [SerializeField] private GameObject hitEffect;
     [SerializeField] private GameObject deathEffect;
     [SerializeField] private AudioClip hitSound;
     [SerializeField] private AudioClip deathSound;
@@ -23,13 +24,16 @@ public class EnemyHealth : MonoBehaviour
     // Reference to spawner so it knows when we die
     private EnemySpawner spawner;
     private AudioSource audioSource;
+    private EnemySound sound;
 
+    // Initializes health to full and sets up the world-space health bar/audio source.
     void Start()
     {
         currentHealth = maxHealth;
         audioSource = GetComponent<AudioSource>();
         if (audioSource == null)
             audioSource = gameObject.AddComponent<AudioSource>();
+        sound = GetComponent<EnemySound>();
 
         if (worldHealthSlider != null)
             worldHealthSlider.value = 1f;
@@ -58,6 +62,9 @@ public class EnemyHealth : MonoBehaviour
 
         if (hitSound != null && audioSource != null)
             audioSource.PlayOneShot(hitSound, GameSettings.SfxVolume);
+
+        if (hitEffect != null)
+            Instantiate(hitEffect, transform.position + Vector3.up, Quaternion.identity);
 
         StartCoroutine(DamageFlash());
 
@@ -133,16 +140,27 @@ public class EnemyHealth : MonoBehaviour
         if (archerAi != null)
             archerAi.enabled = false;
 
+        // Stop footsteps / grunts coming from the corpse during its death delay
+        if (sound != null)
+            sound.enabled = false;
+
         // Delay destroy so animation plays
         StartCoroutine(DeathDelay());
     }
 
+    // Waits for the death animation to finish playing, then awards score, tells the spawner
+    // this enemy is gone (so it can track the wave's live enemy count), maybe drops a
+    // power-up, and finally removes the corpse.
     private System.Collections.IEnumerator DeathDelay()
     {
         yield return new WaitForSeconds(2.5f);
 
         if (GameManager.Instance != null)
-            GameManager.Instance.AddScore(10);
+        {
+            // Archers are worth more than melee grunts.
+            int points = GetComponent<ArcherAI>() != null ? 200 : 100;
+            GameManager.Instance.AddScore(points);
+        }
 
         if (spawner != null)
             spawner.OnEnemyDeath();
@@ -161,13 +179,14 @@ public class EnemyHealth : MonoBehaviour
     private void TryDropPowerUp()
     {
         if (powerUpPrefabs == null || powerUpPrefabs.Length == 0) return;
-        if (Random.value > powerUpDropChance) return;
+        if (Random.value > powerUpDropChance) return; // failed the drop roll - no power-up this time
 
-        GameObject prefab = powerUpPrefabs[Random.Range(0, powerUpPrefabs.Length)];
+        GameObject prefab = powerUpPrefabs[Random.Range(0, powerUpPrefabs.Length)]; // pick one at random
         if (prefab != null)
             Instantiate(prefab, transform.position + Vector3.up * 0.5f, Quaternion.identity);
     }
 
+    // Exposes current health for anything that needs to read it (e.g. UI, other scripts).
     public int GetCurrentHealth()
     {
         return currentHealth;

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes">
+    <title>Unity Web Player | {{{ PRODUCT_NAME }}}</title>
+#if SHOW_DIAGNOSTICS
+    <link rel="stylesheet" href="<<<TemplateData/diagnostics.css>>>">
+    <script src="<<<TemplateData/diagnostics.js>>>"></script>
+#endif
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        border: 0;
+        overflow: hidden;
+        background: {{{ BACKGROUND_FILENAME ? 'url(\'Build/' + BACKGROUND_FILENAME.replace(/'/g, '%27') + '\') center / cover' : BACKGROUND_COLOR }}};
+      }
+      #unity-canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="unity-canvas" width={{{ WIDTH }}} height={{{ HEIGHT }}} tabindex="-1"></canvas>
+#if SHOW_DIAGNOSTICS
+    <div id="unity-footer">
+        <img id="diagnostics-icon" src="TemplateData/webmemd-icon.png">
+    </div>
+#endif
+    <script src="Build/{{{ LOADER_FILENAME }}}"></script>
+    <script>
+#if SHOW_DIAGNOSTICS
+      let diagnostics_icon = document.getElementById("diagnostics-icon");
+      diagnostics_icon.style.position = "fixed";
+      diagnostics_icon.style.bottom = "10px";
+      diagnostics_icon.style.right = "0px";
+#endif
+
+      // Percentage CSS sizing doesn't reliably fill the box here (observed shrunk/pillarboxed
+      // inside itch.io's iframe embed even with html/body/canvas at 100%), so instead size the
+      // canvas to explicit pixel dimensions computed directly from the window every time it
+      // changes - this can't be thrown off by a percentage chain resolving unexpectedly.
+      // itch.io appears to finalize the iframe's own size shortly AFTER this document starts
+      // running (no 'resize' event fires inside the iframe when that happens), so this polls
+      // for the first several seconds instead of trusting a single initial read.
+      // Also set canvas.width/height (the actual render-buffer resolution) directly instead of
+      // leaving that to Unity's own matchWebGLToCanvasSize - confirmed via debug readout that it
+      // was settling on a stale, mismatched buffer size (e.g. 1633x1025) despite the CSS display
+      // size being correct, which is what caused the stretched/off rendering.
+      var canvas = document.querySelector("#unity-canvas");
+      function fitCanvas() {
+        var w = window.innerWidth, h = window.innerHeight;
+        canvas.style.width = w + "px";
+        canvas.style.height = h + "px";
+        canvas.width = w;
+        canvas.height = h;
+      }
+      fitCanvas();
+      window.addEventListener("resize", fitCanvas);
+      var pollCount = 0;
+      var pollTimer = setInterval(function () {
+        fitCanvas();
+        pollCount++;
+        if (pollCount > 40) clearInterval(pollTimer); // ~10s at 250ms
+      }, 250);
+
+      createUnityInstance(document.querySelector("#unity-canvas"), {
+        arguments: [],
+        dataUrl: "Build/{{{ DATA_FILENAME }}}",
+        frameworkUrl: "Build/{{{ FRAMEWORK_FILENAME }}}",
+#if USE_THREADS
+        workerUrl: "Build/{{{ WORKER_FILENAME }}}",
+#endif
+#if USE_WASM
+        codeUrl: "Build/{{{ CODE_FILENAME }}}",
+#endif
+#if SYMBOLS_FILENAME
+        symbolsUrl: "Build/{{{ SYMBOLS_FILENAME }}}",
+#endif
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: {{{ JSON.stringify(COMPANY_NAME) }}},
+        productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
+        productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
+        // The canvas is sized to 100% via CSS above and Unity's default matchWebGLToCanvasSize
+        // keeps the render resolution in sync with it, so the game always fills whatever box
+        // itch.io's embed gives it instead of needing to match fixed pixel dimensions.
+        devicePixelRatio: 1,
+      }).then((unityInstance) => {
+#if SHOW_DIAGNOSTICS
+        document.getElementById("diagnostics-icon").onclick = () => {
+            unityDiagnostics.openDiagnosticsDiv(unityInstance.GetMetricsInfo);
+        };
+#endif
+      }).catch((message) => {
+        alert(message);
+      });
+    </script>
+  </body>
+</html>

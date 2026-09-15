@@ -14,21 +14,35 @@ public class PlayerBlock : MonoBehaviour
     [Tooltip("0 = no reduction, 1 = fully blocks all damage.")]
     [Range(0f, 1f)] [SerializeField] private float damageReduction = 0.8f;
 
+    [Header("Audio")]
+    [Tooltip("Metallic clang played whenever a hit lands on the raised shield " +
+             "(enemy melee or an arrow). Assign ShieldBlock.mp3.")]
+    [SerializeField] private AudioClip blockSound;
+
+    private AudioSource audioSource;
     private Animator animator;
     private PlayerCombat playerCombat;
     private ThirdPersonController thirdPersonController;
+    private AnimatorMirror[] mirrors;
     private static readonly int BlockingHash = Animator.StringToHash("Blocking");
     private static readonly int BlockHitHash = Animator.StringToHash("BlockHit");
 
     public bool IsBlocking { get; private set; }
 
+    // Caches references to everything this script needs from sibling components.
     void Start()
     {
         animator = GetComponent<Animator>();
         playerCombat = GetComponent<PlayerCombat>();
         thirdPersonController = GetComponent<ThirdPersonController>();
+        mirrors = GetComponentsInChildren<AnimatorMirror>(true);
+
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+            audioSource = gameObject.AddComponent<AudioSource>();
     }
 
+    // Reads the block input every frame and keeps the blocking state/animation/movement lock in sync.
     void Update()
     {
         // Shield stays down while mid-swing until the attack is far enough along to be
@@ -88,6 +102,16 @@ public class PlayerBlock : MonoBehaviour
 
         if (animator != null)
             animator.SetTrigger(BlockHitHash);
+
+        // Triggers self-reset before AnimatorMirror's LateUpdate can poll them, so forward
+        // this one directly to the visible mesh's Animator right now instead.
+        foreach (AnimatorMirror mirror in mirrors)
+            mirror.SetTrigger(BlockHitHash);
+
+        // Shield clang - fires for both enemy melee hits and arrow impacts, since every
+        // incoming hit is routed through here by PlayerHealth.TakeDamage.
+        if (blockSound != null && audioSource != null)
+            audioSource.PlayOneShot(blockSound, GameSettings.SfxVolume);
 
         return Mathf.RoundToInt(damage * (1f - damageReduction));
     }

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using StarterAssets;
@@ -25,6 +26,7 @@ public class PlayerCombat : MonoBehaviour
     private Animator animator;
     private ThirdPersonController thirdPersonController;
     private PlayerBlock playerBlock;
+    private AnimatorMirror[] mirrors;
     private bool canAttack = true;
     private bool hitEnemy = false;
     private bool canPlayWhoosh = true;
@@ -81,12 +83,14 @@ public class PlayerCombat : MonoBehaviour
     // Animation hashes
     private static readonly int GroundedHash = Animator.StringToHash("Grounded");
 
+    // Caches references to everything this script needs from sibling components.
     void Start()
     {
         animator = GetComponent<Animator>();
         thirdPersonController = GetComponent<ThirdPersonController>();
         playerBlock = GetComponent<PlayerBlock>();
         audioSource = GetComponent<AudioSource>();
+        mirrors = GetComponentsInChildren<AnimatorMirror>(true);
 
         if (audioSource == null)
             audioSource = gameObject.AddComponent<AudioSource>();
@@ -97,6 +101,7 @@ public class PlayerCombat : MonoBehaviour
         Debug.Log("PlayerCombat initialized - Press LEFT CLICK or E to attack!");
     }
 
+    // Listens for the attack input (left click or E) every frame.
     void Update()
     {
         if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
@@ -149,6 +154,14 @@ public class PlayerCombat : MonoBehaviour
         animator.ResetTrigger(AttackHash);
         animator.SetTrigger(AttackHash);
 
+        // Triggers self-reset before AnimatorMirror's LateUpdate can poll them, so forward
+        // this one directly to the visible mesh's Animator right now instead.
+        foreach (AnimatorMirror mirror in mirrors)
+        {
+            mirror.ResetTrigger(AttackHash);
+            mirror.SetTrigger(AttackHash);
+        }
+
         Debug.Log("Attack!");
 
         // Cancel any previous invokes first!
@@ -193,34 +206,32 @@ public class PlayerCombat : MonoBehaviour
     }
 
     /// <summary>
-    /// Deals damage to enemies in range
+    /// Deals damage to every enemy inside the swing radius - the mace sweeps, so two enemies
+    /// stacked on the player both get hit. Each enemy is only damaged once per swing even if
+    /// it has more than one collider in range.
     /// </summary>
     public void DealDamage()
     {
-        bool alreadyHit = false;
-
         Vector3 origin = attackPoint != null
             ? attackPoint.position
             : transform.position + transform.forward + Vector3.up;
 
         Collider[] hits = Physics.OverlapSphere(origin, attackRadius);
 
+        HashSet<EnemyHealth> alreadyDamaged = new HashSet<EnemyHealth>();
+        int finalDamage = Mathf.RoundToInt((attackDamage + damageBonus) * damageMultiplier);
+
         foreach (Collider hit in hits)
         {
-            if (hit.CompareTag("Enemy") && !alreadyHit)
-            {
-                hitEnemy = true;
-                alreadyHit = true;
+            if (!hit.CompareTag("Enemy")) continue;
 
-                // No hit sound here - EnemyHealth.TakeDamage() below already plays its own
-                // hitSound. Playing one here too was firing both at once on every swing.
-                EnemyHealth enemyHealth = hit.GetComponent<EnemyHealth>();
-                if (enemyHealth != null)
-                {
-                    int finalDamage = Mathf.RoundToInt((attackDamage + damageBonus) * damageMultiplier);
-                    enemyHealth.TakeDamage(finalDamage);
-                }
-            }
+            EnemyHealth enemyHealth = hit.GetComponentInParent<EnemyHealth>();
+            if (enemyHealth == null || !alreadyDamaged.Add(enemyHealth)) continue;
+
+            hitEnemy = true;
+
+            // No hit sound here - EnemyHealth.TakeDamage() below plays its own hitSound.
+            enemyHealth.TakeDamage(finalDamage);
         }
     }
 
@@ -234,6 +245,8 @@ public class PlayerCombat : MonoBehaviour
         damageBuffRoutine = StartCoroutine(DamageBuffRoutine(multiplier, duration));
     }
 
+    // Runs for the buff's duration: keeps the UI timer updated every frame, then reverts
+    // the damage multiplier back to normal once time runs out.
     private System.Collections.IEnumerator DamageBuffRoutine(float multiplier, float duration)
     {
         damageMultiplier = multiplier;
@@ -258,6 +271,23 @@ public class PlayerCombat : MonoBehaviour
             UIManager.Instance.HideStrongAttackTimer();
 
         Debug.Log("Strong Attack wore off.");
+    }
+
+    /// <summary>
+    /// Cancels the Strong Attack buff right now and hides its UI timer. Called on
+    /// death / restart so a buff picked up in one run never carries into the next.
+    /// </summary>
+    public void ClearDamageBuff()
+    {
+        if (damageBuffRoutine != null)
+        {
+            StopCoroutine(damageBuffRoutine);
+            damageBuffRoutine = null;
+        }
+        damageMultiplier = 1f;
+
+        if (UIManager.Instance != null)
+            UIManager.Instance.HideStrongAttackTimer();
     }
 
     /// <summary>

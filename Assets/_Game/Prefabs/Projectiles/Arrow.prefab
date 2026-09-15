@@ -341,7 +341,7 @@ MonoBehaviour:
   defaultDamage: 12
   lifeTime: 5
   hitSound: {fileID: 0}
-  hitEffect: {fileID: 0}
+  hitEffect: {fileID: 5626493116911502582, guid: 14d6c1f0361584ca990d34cc8e416a3d, type: 3}
 --- !u!1 &6953308743942388379
 GameObject:
   m_ObjectHideFlags: 0

@@ -2244,6 +2244,7 @@ GameObject:
   - component: {fileID: 520953751992100456}
   - component: {fileID: 3265070218640246043}
   - component: {fileID: 1393727159825244674}
+  - component: {fileID: 1725623874593731263}
   m_Layer: 0
   m_Name: Enemy 1
   m_TagString: Enemy
@@ -2278,7 +2279,7 @@ Rigidbody:
   m_GameObject: {fileID: 6316599647208405895}
   serializedVersion: 5
   m_Mass: 1
-  m_LinearDamping: 5
+  m_LinearDamping: 0
   m_AngularDamping: 5
   m_CenterOfMass: {x: 0, y: 0, z: 0}
   m_InertiaTensor: {x: 1, y: 1, z: 1}
@@ -2303,7 +2304,7 @@ CapsuleCollider:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6316599647208405895}
-  m_Material: {fileID: 0}
+  m_Material: {fileID: 13400000, guid: 1d6cd1776ca894002ac33d9b1dee4f72, type: 2}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -2337,7 +2338,8 @@ MonoBehaviour:
   attackRange: 2
   attackCooldown: 1.5
   attackDamage: 10
-  detectionRange: 50
+  detectionRange: 90
+  gravity: -20
 --- !u!114 &520953751992100456
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2354,7 +2356,8 @@ MonoBehaviour:
   currentHealth: 0
   worldHealthSlider: {fileID: 6022651372226417764}
   worldHealthBarRoot: {fileID: 3936450213931125743}
-  deathEffect: {fileID: 0}
+  hitEffect: {fileID: 5626493116911502582, guid: 14d6c1f0361584ca990d34cc8e416a3d, type: 3}
+  deathEffect: {fileID: 6951297220951353834, guid: 98a383cf42e2545b9b9ee236ebe7affc, type: 3}
   hitSound: {fileID: 8300000, guid: d619c1668c95644ddbaa6993f4cacaac, type: 3}
   deathSound: {fileID: 8300000, guid: 144f1b12d353a4385b56f7511b62d126, type: 3}
   powerUpPrefabs:
@@ -2480,6 +2483,29 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &1725623874593731263
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6316599647208405895}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 72c62769ef5034a7d91c544701d2b692, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemySound
+  battleCry: {fileID: 8300000, guid: 3fafac6e8f94a4f6897bfa6dd48886b1, type: 3}
+  attackGrunt: {fileID: 8300000, guid: 47e6b62e93e9346ad99e43051dcf8be0, type: 3}
+  footsteps:
+  - {fileID: 8300000, guid: 9efc2764ca2314b79839935c18f5eb5d, type: 3}
+  stepInterval: 0.4
+  attackFootstepSilence: 0.9
+  bowDraw: {fileID: 8300000, guid: fa396b11a2d384398b487103012271fc, type: 3}
+  bowDrawSeconds: 1
+  bowRelease: {fileID: 8300000, guid: 23dcff2d1cee0451abfd9d0b362b4287, type: 3}
+  voiceVolume: 0.9
+  footstepVolume: 0.25
 --- !u!1 &6426537539670383275
 GameObject:
   m_ObjectHideFlags: 0

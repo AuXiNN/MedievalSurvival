@@ -13,10 +13,10 @@ public class Projectile : MonoBehaviour
     [SerializeField] private AudioClip hitSound;
     [SerializeField] private GameObject hitEffect;
 
-    private float speed;
-    private int damage;
-    private Vector3 direction = Vector3.forward;
-    private bool initialized;
+    private float speed;                              // current travel speed, set by Init() or the default above
+    private int damage;                                // damage dealt to the player on a hit
+    private Vector3 direction = Vector3.forward;       // normalized flight direction
+    private bool initialized;                          // true once Init() has set a real aimed direction
 
     void Awake()
     {
@@ -42,7 +42,7 @@ public class Projectile : MonoBehaviour
 
     void Start()
     {
-        Destroy(gameObject, lifeTime);
+        Destroy(gameObject, lifeTime); // auto-cleanup if the arrow never hits anything
     }
 
     /// <summary>Called by ArcherAI right after Instantiate to aim and configure this shot.</summary>
@@ -55,18 +55,20 @@ public class Projectile : MonoBehaviour
         transform.rotation = Quaternion.LookRotation(direction);
     }
 
+    // Moves the arrow forward every frame in a straight line at constant speed.
     void Update()
     {
-        Vector3 moveDir = initialized ? direction : transform.forward;
+        Vector3 moveDir = initialized ? direction : transform.forward; // fall back to forward if never aimed
         transform.position += moveDir * speed * Time.deltaTime;
     }
 
+    // Fires when the arrow's trigger collider overlaps something.
     private void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("Player"))
         {
             PlayerHealth health = other.GetComponent<PlayerHealth>();
-            if (health != null) health.TakeDamage(damage);
+            if (health != null) health.TakeDamage(damage); // apply the hit
 
             ImpactAndDestroy();
             return;
@@ -79,6 +81,7 @@ public class Projectile : MonoBehaviour
         }
     }
 
+    // Shared "the arrow just hit something" cleanup: play feedback, then remove the arrow.
     private void ImpactAndDestroy()
     {
         if (hitSound != null)

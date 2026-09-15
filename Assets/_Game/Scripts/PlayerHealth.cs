@@ -15,6 +15,7 @@ public class PlayerHealth : MonoBehaviour
     private Renderer[] renderers;
     private PlayerBlock playerBlock;
 
+    // Sets health to full and finds sibling components/renderers needed for damage feedback.
     void Start()
     {
         currentHealth = maxHealth;
@@ -39,6 +40,10 @@ public class PlayerHealth : MonoBehaviour
     {
         if (GameManager.Instance != null && GameManager.Instance.isGameOver) return;
 
+        // If the shield is up, PlayerBlock reduces the damage AND plays its own shield-clang
+        // sound - so we skip the normal hurt sound below to avoid the two overlapping.
+        bool blocked = playerBlock != null && playerBlock.IsBlocking;
+
         if (playerBlock != null)
             damage = playerBlock.ModifyIncomingDamage(damage);
 
@@ -51,10 +56,9 @@ public class PlayerHealth : MonoBehaviour
         if (UIManager.Instance != null)
             UIManager.Instance.UpdateHealthBar(currentHealth, maxHealth);
 
-        // Play hurt sound - same 1x scale as every other combat sound (enemy hit, enemy
-        // death, arrow impact). This used to be scaled to 0.3x, which made getting hit
-        // sound much quieter than landing a hit for no real reason.
-        if (hurtSound != null && audioSource != null)
+        // Play hurt sound - only when NOT blocking (a blocked hit plays the shield clang
+        // from PlayerBlock instead). Same 1x scale as every other combat sound.
+        if (!blocked && hurtSound != null && audioSource != null)
             audioSource.PlayOneShot(hurtSound, GameSettings.SfxVolume);
 
         // Flash the player red, same as enemies do when hit
@@ -107,6 +111,7 @@ public class PlayerHealth : MonoBehaviour
             GameManager.Instance.GameOver();
     }
     
+    // Restores full health and refreshes the UI - used when starting a fresh run.
     public void ResetHealth()
     {
         currentHealth = maxHealth;
@@ -142,6 +147,7 @@ public class PlayerHealth : MonoBehaviour
             UIManager.Instance.UpdateHealthBar(currentHealth, maxHealth);
     }
 
+    // Simple accessors so UI/other scripts can read health without modifying it directly.
     public int GetCurrentHealth() { return currentHealth; }
     public int GetMaxHealth() { return maxHealth; }
 }

@@ -56,6 +56,8 @@ public class TitleTextEffect : MonoBehaviour
         rt = (RectTransform)transform;
     }
 
+    // Remembers the title's starting position (so the float effect has something to return
+    // to) and restarts the reveal/animation timers whenever this object becomes active.
     void OnEnable()
     {
         if (!hasBasePos)
@@ -70,12 +72,15 @@ public class TitleTextEffect : MonoBehaviour
             ApplyDropShadow();
     }
 
+    // Puts the title back at its original position when disabled, so re-enabling it later
+    // doesn't start from wherever the float animation happened to leave it.
     void OnDisable()
     {
         if (hasBasePos)
             rt.anchoredPosition = basePos;
     }
 
+    // Turns on TextMeshPro's built-in "underlay" shader feature to fake a soft drop shadow.
     private void ApplyDropShadow()
     {
         matInstance = text.fontMaterial; // TMP hands back a per-instance material
@@ -89,6 +94,8 @@ public class TitleTextEffect : MonoBehaviour
         matInstance.SetFloat(ShaderUtilities.ID_UnderlaySoftness, 0.4f);
     }
 
+    // Runs every frame (unscaled, so it keeps animating even while the game is paused) to
+    // update the float position and recolor every character for the gradient/glint/reveal effects.
     void LateUpdate()
     {
         time += Time.unscaledDeltaTime;
@@ -96,7 +103,7 @@ public class TitleTextEffect : MonoBehaviour
         if (bobAmplitude > 0f && hasBasePos)
             rt.anchoredPosition = basePos + new Vector2(0f, Mathf.Sin(time * bobSpeed) * bobAmplitude);
 
-        text.ForceMeshUpdate();
+        text.ForceMeshUpdate(); // make sure textInfo reflects the current text before we read it
         TMP_TextInfo info = text.textInfo;
         if (info == null || info.characterCount == 0)
             return;
@@ -109,26 +116,29 @@ public class TitleTextEffect : MonoBehaviour
             minX = Mathf.Min(minX, info.characterInfo[i].bottomLeft.x);
             maxX = Mathf.Max(maxX, info.characterInfo[i].topRight.x);
         }
-        float width = Mathf.Max(0.0001f, maxX - minX);
+        float width = Mathf.Max(0.0001f, maxX - minX); // avoid divide-by-zero for a single/no character
 
-        // Reveal timing.
+        // Reveal timing: how long the full letter-by-letter fade-in takes, and whether we're
+        // still inside that window right now.
         float revealTotal = playReveal ? info.characterCount * revealPerChar + revealCharFade : 0f;
         bool revealing = playReveal && (Time.unscaledTime - revealStartTime) < revealTotal;
 
         // Glint head sweeps -glintWidth .. 1+glintWidth, then rests off-screen for glintInterval.
         float sweepDuration = (1f + 2f * glintWidth) / Mathf.Max(0.01f, glintSpeed);
         float cycle = sweepDuration + glintInterval;
-        float localT = Mathf.Repeat(time, cycle);
+        float localT = Mathf.Repeat(time, cycle); // where we are in the current sweep+pause cycle
         float glintHead = localT < sweepDuration
             ? -glintWidth + localT * glintSpeed
-            : 999f; // resting
+            : 999f; // resting (far enough away that no character is lit up)
 
         // Breathing multiplier on the whole title.
         float breath = 1f + Mathf.Sin(time * breathSpeed) * breathAmount;
         Color top = topColor * breath;
         Color bottom = bottomColor * breath;
-        top.a = bottom.a = 1f;
+        top.a = bottom.a = 1f; // multiplying by breath must not affect transparency, only brightness
 
+        // Recolor every visible character's 4 corner vertices individually, so the gradient,
+        // glint and reveal fade can all vary smoothly across the width of the title.
         for (int i = 0; i < info.characterCount; i++)
         {
             TMP_CharacterInfo ci = info.characterInfo[i];
@@ -137,12 +147,13 @@ public class TitleTextEffect : MonoBehaviour
             Color32[] cols = info.meshInfo[ci.materialReferenceIndex].colors32;
             int v = ci.vertexIndex;
 
-            float charLeft = (ci.bottomLeft.x - minX) / width;
-            float charRight = (ci.topRight.x - minX) / width;
+            float charLeft = (ci.bottomLeft.x - minX) / width;  // this character's left edge, 0-1 across the title
+            float charRight = (ci.topRight.x - minX) / width;   // this character's right edge, 0-1 across the title
 
             float alpha = 1f;
             if (revealing)
             {
+                // Each character starts fading in revealPerChar seconds after the previous one.
                 float e = (Time.unscaledTime - revealStartTime - i * revealPerChar) / Mathf.Max(0.0001f, revealCharFade);
                 alpha = Mathf.Clamp01(e);
             }
@@ -154,13 +165,15 @@ public class TitleTextEffect : MonoBehaviour
             cols[v + 3] = Tint(bottom, charRight, glintHead, alpha);
         }
 
-        text.UpdateVertexData(TMP_VertexDataUpdateFlags.Colors32);
+        text.UpdateVertexData(TMP_VertexDataUpdateFlags.Colors32); // push the new vertex colors to the renderer
     }
 
+    // Blends the base gradient color toward the glint color based on how close this vertex's
+    // horizontal position is to the sweeping glint head, and applies the reveal fade alpha.
     private Color32 Tint(Color baseColor, float xNorm, float glintHead, float alpha)
     {
-        float d = Mathf.Abs(xNorm - glintHead);
-        float g = d < glintWidth ? 1f - d / glintWidth : 0f;
+        float d = Mathf.Abs(xNorm - glintHead); // distance from the glint's current position
+        float g = d < glintWidth ? 1f - d / glintWidth : 0f; // 1 = right at the glint, 0 = outside its width
         g = g * g * glintStrength; // sharpen the highlight
         Color c = Color.Lerp(baseColor, glintColor, g);
         c.a = alpha;

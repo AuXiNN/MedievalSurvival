@@ -1,6 +1,13 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// Spawns a wave's worth of enemies, one at a time, at randomly-chosen spawn points.
+/// The actual wave timing (how long between waves, when the next one starts) lives in
+/// GameManager's wave coroutine - this class just knows how to place one wave on request
+/// and how many of that wave are still alive.
+/// </summary>
 public class EnemySpawner : MonoBehaviour
 {
     [Header("Enemy Types")]
@@ -9,137 +16,127 @@ public class EnemySpawner : MonoBehaviour
 
     [Header("Spawn Settings")]
     [SerializeField] private Transform[] spawnPoints;
+    [Tooltip("Seconds between each enemy appearing within a single wave.")]
     [SerializeField] private float timeBetweenSpawns = 1.5f;
 
-    [Header("Debug")]
-    [SerializeField] private int currentEnemyCount = 0;
-    private readonly List<GameObject> spawnQueue = new List<GameObject>();
-    private int enemiesToSpawnThisWave = 0;
-    private int enemiesSpawnedThisWave = 0;
+    [Header("Debug (read-only)")]
+    [SerializeField] private int liveEnemyCount = 0;
 
-    /// <summary>
-    /// Called by GameManager to start a new wave with an exact melee/archer composition.
-    /// </summary>
-    public void StartWave(int meleeCount, int archerCount)
+    // Multiplies timeBetweenSpawns - GameManager sets this from the chosen difficulty
+    // (>1 = enemies trickle in slower on Easy, <1 = they pour in on Hard).
+    private float spawnGapMultiplier = 1f;
+
+    /// <summary>Enemies still alive from the wave in progress. GameManager's coroutine waits on this.</summary>
+    public int LiveEnemyCount => liveEnemyCount;
+
+    /// <summary>Called by GameManager at startup to apply the difficulty's spawn-rate scaling.</summary>
+    public void SetSpawnGapMultiplier(float multiplier)
     {
-        spawnQueue.Clear();
-        for (int i = 0; i < meleeCount; i++) spawnQueue.Add(meleeEnemyPrefab);
-        for (int i = 0; i < archerCount; i++) spawnQueue.Add(archerEnemyPrefab);
-        Shuffle(spawnQueue); // so archers/melee don't always spawn in the same block order
-
-        enemiesToSpawnThisWave = spawnQueue.Count;
-        enemiesSpawnedThisWave = 0;
-        currentEnemyCount = 0;
-
-        Debug.Log($"Spawner: Starting wave with {meleeCount} melee + {archerCount} archer enemies!");
-
-        // Spawn enemies one by one with delay
-        InvokeRepeating(nameof(SpawnEnemy), 0.5f, timeBetweenSpawns);
-    }
-
-    private void SpawnEnemy()
-    {
-        // Stop spawning if we've spawned enough for this wave
-        if (enemiesSpawnedThisWave >= enemiesToSpawnThisWave)
-        {
-            CancelInvoke(nameof(SpawnEnemy));
-            Debug.Log("Spawner: All enemies for this wave spawned!");
-            return;
-        }
-
-        if (spawnPoints.Length == 0)
-        {
-            Debug.LogError("No spawn points assigned!");
-            return;
-        }
-
-        GameObject enemyPrefab = spawnQueue[enemiesSpawnedThisWave];
-        if (enemyPrefab == null)
-        {
-            Debug.LogError("EnemySpawner: a slot in this wave has no prefab assigned (melee/archer prefab missing).");
-            enemiesSpawnedThisWave++; // skip it so the wave doesn't stall forever
-            return;
-        }
-
-        Transform spawnPoint = GetFreeSpawnPoint();
-        if (spawnPoint == null)
-        {
-            Debug.Log("All spawn points occupied, retrying...");
-            return;
-        }
-
-        GameObject newEnemy = Instantiate(enemyPrefab, spawnPoint.position, spawnPoint.rotation);
-        currentEnemyCount++;
-        enemiesSpawnedThisWave++;
-
-        // Register spawner with enemy
-        EnemyHealth enemyHealth = newEnemy.GetComponent<EnemyHealth>();
-        if (enemyHealth != null)
-            enemyHealth.SetSpawner(this);
-
-        Debug.Log("Enemy spawned! " + enemiesSpawnedThisWave + "/" + enemiesToSpawnThisWave);
+        spawnGapMultiplier = Mathf.Max(0.1f, multiplier);
     }
 
     /// <summary>
-    /// Called by EnemyHealth when enemy dies
+    /// Spawns one wave, one enemy every <see cref="timeBetweenSpawns"/> seconds. It's a
+    /// coroutine so GameManager can `yield return` it and continue only once the whole wave
+    /// has been placed - no InvokeRepeating, no manual CancelInvoke.
     /// </summary>
+    public IEnumerator SpawnWaveRoutine(int meleeCount, int archerCount)
+    {
+        // Build a shuffled spawn order so melee and archers aren't always grouped together.
+        List<GameObject> queue = new List<GameObject>();
+        for (int i = 0; i < meleeCount; i++) queue.Add(meleeEnemyPrefab);
+        for (int i = 0; i < archerCount; i++) queue.Add(archerEnemyPrefab);
+        Shuffle(queue);
+
+        liveEnemyCount = 0;
+        Debug.Log($"Spawner: placing wave - {meleeCount} melee + {archerCount} archers.");
+
+        foreach (GameObject prefab in queue)
+        {
+            SpawnOne(prefab);
+            yield return new WaitForSeconds(timeBetweenSpawns * spawnGapMultiplier);
+        }
+
+        Debug.Log("Spawner: whole wave placed.");
+    }
+
+    // Instantiates a single enemy at a spawn point and registers it with this spawner
+    // so its death can be tracked toward the wave's live enemy count.
+    private void SpawnOne(GameObject prefab)
+    {
+        if (prefab == null)
+        {
+            Debug.LogError("EnemySpawner: melee/archer prefab not assigned - skipping this spawn.");
+            return;
+        }
+        if (spawnPoints == null || spawnPoints.Length == 0)
+        {
+            Debug.LogError("EnemySpawner: no spawn points assigned!");
+            return;
+        }
+
+        // Prefer a spawn point with no enemy standing on it; fall back to a random one.
+        Transform point = GetFreeSpawnPoint();
+        if (point == null) point = spawnPoints[Random.Range(0, spawnPoints.Length)];
+
+        GameObject enemy = Instantiate(prefab, point.position, point.rotation);
+        liveEnemyCount++;
+
+        EnemyHealth health = enemy.GetComponent<EnemyHealth>();
+        if (health != null) health.SetSpawner(this);
+
+        Debug.Log($"Enemy spawned at '{point.name}'. Alive this wave: {liveEnemyCount}");
+    }
+
+    /// <summary>Called by EnemyHealth once an enemy has finished dying.</summary>
     public void OnEnemyDeath()
     {
-        currentEnemyCount--;
-        Debug.Log("Enemy died! Remaining: " + currentEnemyCount);
-
-        // Check if all enemies are dead to trigger next wave
-        if (currentEnemyCount <= 0 && enemiesSpawnedThisWave >= enemiesToSpawnThisWave)
-        {
-            Debug.Log("All enemies defeated!");
-            if (GameManager.Instance != null)
-                GameManager.Instance.OnWaveComplete();
-        }
+        liveEnemyCount = Mathf.Max(0, liveEnemyCount - 1);
+        Debug.Log($"Enemy down. Alive this wave: {liveEnemyCount}");
     }
 
+    // Searches the spawn points (starting from a random one, wrapping around) for one that
+    // doesn't already have an enemy standing near it, so enemies don't spawn stacked on top
+    // of each other. Returns null if every point is currently occupied.
     private Transform GetFreeSpawnPoint()
     {
         int randomStart = Random.Range(0, spawnPoints.Length);
         for (int i = 0; i < spawnPoints.Length; i++)
         {
-            int index = (randomStart + i) % spawnPoints.Length;
-            Transform point = spawnPoints[index];
+            Transform point = spawnPoints[(randomStart + i) % spawnPoints.Length];
+            if (point == null) continue;
 
-            Collider[] nearby = Physics.OverlapSphere(point.position, 2f);
-            bool isFree = true;
-            foreach (Collider col in nearby)
+            bool occupied = false;
+            foreach (Collider col in Physics.OverlapSphere(point.position, 2f))
             {
-                if (col.CompareTag("Enemy"))
-                {
-                    isFree = false;
-                    break;
-                }
+                if (col.CompareTag("Enemy")) { occupied = true; break; } // something with the Enemy tag is already here
             }
-            if (isFree) return point;
+            if (!occupied) return point;
         }
         return null;
     }
 
+    // Randomizes the order of a list in place (Fisher-Yates shuffle), used so the wave's
+    // enemy types spawn in a mixed order instead of all melee then all archers.
     private static void Shuffle(List<GameObject> list)
     {
         for (int i = list.Count - 1; i > 0; i--)
         {
             int j = Random.Range(0, i + 1);
-            (list[i], list[j]) = (list[j], list[i]);
+            (list[i], list[j]) = (list[j], list[i]); // swap
         }
     }
 
+    // Draws each spawn point as a small sphere (and its occupancy-check radius) in the Scene view.
     private void OnDrawGizmos()
     {
         if (spawnPoints == null) return;
         Gizmos.color = Color.magenta;
         foreach (Transform point in spawnPoints)
         {
-            if (point != null)
-            {
-                Gizmos.DrawSphere(point.position, 0.5f);
-                Gizmos.DrawWireSphere(point.position, 2f);
-            }
+            if (point == null) continue;
+            Gizmos.DrawSphere(point.position, 0.5f);
+            Gizmos.DrawWireSphere(point.position, 2f);
         }
     }
 }

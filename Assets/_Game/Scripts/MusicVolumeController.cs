@@ -12,24 +12,28 @@ using UnityEngine;
 [RequireComponent(typeof(AudioSource))]
 public class MusicVolumeController : MonoBehaviour
 {
-    private AudioSource musicSource;
+    private AudioSource musicSource; // the looping background-music AudioSource on this object
 
     void Awake()
     {
         musicSource = GetComponent<AudioSource>();
     }
 
+    // Apply the saved volume immediately when this object becomes active, and keep
+    // listening so the music updates live whenever the player changes the slider.
     void OnEnable()
     {
         ApplyVolume();
         GameSettings.OnSettingsChanged += ApplyVolume;
     }
 
+    // Always unsubscribe when disabled/destroyed to avoid calling into a dead object.
     void OnDisable()
     {
         GameSettings.OnSettingsChanged -= ApplyVolume;
     }
 
+    // Copies the current MusicVolume setting onto the actual AudioSource playing the music.
     private void ApplyVolume()
     {
         if (musicSource != null)

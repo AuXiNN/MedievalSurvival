@@ -48,10 +48,11 @@ public class PauseMenu : MonoBehaviour
             audioSource = gameObject.AddComponent<AudioSource>();
     }
 
+    // Watches for the Esc key every frame and decides what it should do based on current state.
     void Update()
     {
-        if (SceneManager.GetActiveScene().buildIndex != GameSceneBuildIndex) return;
-        if (GameManager.Instance != null && GameManager.Instance.isGameOver) return;
+        if (SceneManager.GetActiveScene().buildIndex != GameSceneBuildIndex) return; // only active during gameplay
+        if (GameManager.Instance != null && GameManager.Instance.isGameOver) return; // no pausing on the game over screen
 
         if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
         {
@@ -85,11 +86,12 @@ public class PauseMenu : MonoBehaviour
             audioSource.PlayOneShot(clickSound, GameSettings.SfxVolume);
     }
 
+    // Freezes gameplay and shows the pause panel.
     public void Pause()
     {
         IsPaused = true;
-        Time.timeScale = 0f;
-        Cursor.lockState = CursorLockMode.None;
+        Time.timeScale = 0f; // stops all physics/animation/Update-based movement across the game
+        Cursor.lockState = CursorLockMode.None; // free the cursor so it can click UI buttons
         Cursor.visible = true;
 
         if (PlayerInput != null)
@@ -102,11 +104,12 @@ public class PauseMenu : MonoBehaviour
         if (pausePanelRoot != null) pausePanelRoot.SetActive(true);
     }
 
+    // Unfreezes gameplay and hides all pause-related panels.
     public void Resume()
     {
         IsPaused = false;
-        Time.timeScale = 1f;
-        Cursor.lockState = CursorLockMode.Locked;
+        Time.timeScale = 1f; // restore normal game speed
+        Cursor.lockState = CursorLockMode.Locked; // re-lock the cursor to the window for camera look
         Cursor.visible = false;
 
         if (PlayerInput != null)
