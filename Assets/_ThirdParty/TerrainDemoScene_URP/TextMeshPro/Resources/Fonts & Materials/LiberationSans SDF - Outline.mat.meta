@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 6094f048a9ec443c3bd5b3e7d384a0d6
+timeCreated: 1484172856
+licenseType: Pro
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 213197
+  packageName: Unity Terrain - URP Demo Scene
+  packageVersion: 1.0.3
+  assetPath: Assets/TerrainDemoScene_URP/TextMeshPro/Resources/Fonts & Materials/LiberationSans
+    SDF - Outline.mat
+  uploadId: 727820

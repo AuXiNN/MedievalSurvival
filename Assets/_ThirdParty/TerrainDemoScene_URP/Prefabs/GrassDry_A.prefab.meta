@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: e053922438428410faaf23b50b3cf02e
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 145808
+  packageName: Terrain Sample Asset Pack
+  packageVersion: 2.0.1
+  assetPath: Assets/_ThirdParty/TerrainDemoScene_URP/Prefabs/GrassDry_A.prefab
+  uploadId: 511657
