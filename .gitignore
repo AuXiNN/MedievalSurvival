@@ -21,8 +21,6 @@ UserSettings/
 
 # Raw Asset Files
 *.psd
-*.tif
-*.exr
 
 # Build output (itch.io builds land here - see BuildForItch.cs)
 /Builds/
