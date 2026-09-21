@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 /// <summary>How many melee/archer enemies spawn in a given wave.</summary>
 [System.Serializable]
@@ -70,7 +71,7 @@ public class GameManager : MonoBehaviour
     /// </summary>
     private IEnumerator RunWaves()
     {
-        yield return new WaitForSeconds(2f); // let the scene settle before wave 1
+        yield return IntroWarmupAndFade(); // hide the first-frame shader-compile stutter behind a brief fade
 
         while (!isGameOver)
         {
@@ -98,6 +99,50 @@ public class GameManager : MonoBehaviour
             // 3. breather before the next wave (longer on Easy, shorter on Hard)
             yield return new WaitForSeconds(timeBetweenWaves * scale.waveGap);
         }
+    }
+
+    /// <summary>
+    /// Covers the very start of the level with a runtime-built black overlay while enemy
+    /// shaders get force-compiled behind it (see EnemySpawner.WarmupShadersRoutine). Without
+    /// this, the first-ever render of the terrain's materials and the first enemy the player
+    /// meets each cause a visible hitch, since Unity compiles a shader variant the first time
+    /// it's actually used rather than ahead of time. Built entirely in code so it doesn't
+    /// depend on any UI already existing in the scene.
+    /// </summary>
+    private IEnumerator IntroWarmupAndFade()
+    {
+        GameObject canvasObj = new GameObject("IntroFadeCanvas");
+        Canvas canvas = canvasObj.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 1000; // draw on top of the HUD and everything else
+
+        GameObject imageObj = new GameObject("FadeImage");
+        imageObj.transform.SetParent(canvasObj.transform, false);
+        Image fadeImage = imageObj.AddComponent<Image>();
+        fadeImage.color = Color.black;
+        RectTransform rt = fadeImage.rectTransform;
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+
+        yield return null; // let the opaque black frame render once before doing anything expensive
+
+        if (enemySpawner != null)
+            yield return enemySpawner.WarmupShadersRoutine();
+
+        yield return new WaitForSeconds(0.5f); // give slower machines time to finish compiling
+
+        float fadeDuration = 1f;
+        float t = 0f;
+        while (t < fadeDuration)
+        {
+            t += Time.deltaTime;
+            fadeImage.color = new Color(0f, 0f, 0f, 1f - (t / fadeDuration));
+            yield return null;
+        }
+
+        Destroy(canvasObj);
     }
 
     /// <summary>

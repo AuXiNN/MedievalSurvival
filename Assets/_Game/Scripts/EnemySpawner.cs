@@ -88,6 +88,32 @@ public class EnemySpawner : MonoBehaviour
         Debug.Log($"Enemy spawned at '{point.name}'. Alive this wave: {liveEnemyCount}");
     }
 
+    /// <summary>
+    /// Briefly instantiates one of each enemy type so their materials render (and their
+    /// shaders compile) right now, rather than the first time a real enemy of that type
+    /// spawns into view during a wave - which is what causes the stutter the moment the
+    /// player first sees a melee/archer enemy. Callers are expected to hide this behind a
+    /// loading/fade overlay since these instances are fully visible while they exist.
+    /// </summary>
+    public IEnumerator WarmupShadersRoutine()
+    {
+        if (spawnPoints == null || spawnPoints.Length == 0) yield break;
+
+        List<GameObject> warmupInstances = new List<GameObject>();
+        foreach (GameObject prefab in new[] { meleeEnemyPrefab, archerEnemyPrefab })
+        {
+            if (prefab == null) continue;
+            warmupInstances.Add(Instantiate(prefab, spawnPoints[0].position, spawnPoints[0].rotation));
+        }
+
+        // Give the render pipeline a couple of frames to actually draw (and thus compile) them.
+        yield return null;
+        yield return null;
+
+        foreach (GameObject instance in warmupInstances)
+            Destroy(instance);
+    }
+
     /// <summary>Called by EnemyHealth once an enemy has finished dying.</summary>
     public void OnEnemyDeath()
     {
