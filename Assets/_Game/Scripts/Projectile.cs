@@ -55,40 +55,62 @@ public class Projectile : MonoBehaviour
         transform.rotation = Quaternion.LookRotation(direction);
     }
 
-    // Moves the arrow forward every frame in a straight line at constant speed.
+    // Moves the arrow forward every frame, sweeping a ray across this frame's travel distance
+    // first. A plain `transform.position +=` with only OnTriggerEnter to catch hits lets a fast
+    // arrow skip clean over a thin or slightly-misaligned environment collider in a single frame,
+    // since the overlap used to only ever get checked at the arrow's end-of-frame position, never
+    // along the path it travelled to get there.
     void Update()
     {
         Vector3 moveDir = initialized ? direction : transform.forward; // fall back to forward if never aimed
-        transform.position += moveDir * speed * Time.deltaTime;
+        float distance = speed * Time.deltaTime;
+
+        if (Physics.Raycast(transform.position, moveDir, out RaycastHit hit, distance) &&
+            TryHandleHit(hit.collider, hit.point))
+            return; // arrow was destroyed by the hit, nothing left to move
+
+        transform.position += moveDir * distance;
     }
 
-    // Fires when the arrow's trigger collider overlaps something.
+    // Fallback for the rare case something overlaps the arrow without the sweep ray above
+    // catching it (e.g. it spawns already inside a collider).
     private void OnTriggerEnter(Collider other)
+    {
+        TryHandleHit(other, transform.position);
+    }
+
+    // Shared hit logic for both the sweep ray and the trigger fallback.
+    // Returns true if the arrow was destroyed as a result.
+    private bool TryHandleHit(Collider other, Vector3 hitPoint)
     {
         if (other.CompareTag("Player"))
         {
             PlayerHealth health = other.GetComponent<PlayerHealth>();
             if (health != null) health.TakeDamage(damage); // apply the hit
 
-            ImpactAndDestroy();
-            return;
+            ImpactAndDestroy(hitPoint);
+            return true;
         }
 
-        // Ignore other triggers (pickups, other projectiles) but stop on solid geometry/enemies.
+        // Ignore other triggers (pickups, other projectiles) and enemies (no friendly fire),
+        // but stop on solid environment geometry.
         if (!other.isTrigger && !other.CompareTag("Enemy"))
         {
-            ImpactAndDestroy();
+            ImpactAndDestroy(hitPoint);
+            return true;
         }
+
+        return false;
     }
 
     // Shared "the arrow just hit something" cleanup: play feedback, then remove the arrow.
-    private void ImpactAndDestroy()
+    private void ImpactAndDestroy(Vector3 hitPoint)
     {
         if (hitSound != null)
-            AudioSource.PlayClipAtPoint(hitSound, transform.position, GameSettings.SfxVolume);
+            AudioSource.PlayClipAtPoint(hitSound, hitPoint, GameSettings.SfxVolume);
 
         if (hitEffect != null)
-            Instantiate(hitEffect, transform.position, Quaternion.identity);
+            Instantiate(hitEffect, hitPoint, Quaternion.identity);
 
         Destroy(gameObject);
     }

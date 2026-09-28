@@ -3,59 +3,59 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 
 /// <summary>
-/// One-click setup for invisible boundary walls around the level's Terrain, so the player
-/// can't wander out into the open/empty world past the edge of the playable area.
+/// One-click setup for invisible boundary walls around the fighting area, so the player can't
+/// wander off the ruin platform into the open field around it.
 ///
-/// Creates 4 tall, thin BoxColliders (no renderer - invisible) hugging each edge of the
-/// Terrain, sized from the Terrain's actual dimensions so it works no matter how big the
-/// terrain is.
+/// Creates a ring of tall, thin BoxColliders (no renderer - invisible) approximating a circle
+/// around the arena (see ArenaBounds), matching the round shape of the ruin platform instead of
+/// boxing it in with 4 flat walls.
 ///
 /// Run:  Tools ▸ Medieval Survival ▸ Setup Boundary Walls     (then save the scene)
-/// Re-runnable: it repositions the existing walls instead of duplicating them.
+/// Re-runnable: clears out whatever it placed last time and rebuilds fresh.
 /// </summary>
 public static class BoundaryWallsSetup
 {
     private const string ParentName = "Boundary Walls";
-    private const float WallHeight = 40f;
+    private const float WallHeight = 15f;
     private const float WallThickness = 2f;
+    private const int Segments = 20; // more segments = smoother circle
 
     [MenuItem("Tools/Medieval Survival/Setup Boundary Walls")]
     public static void Run()
     {
-        Terrain terrain = Object.FindFirstObjectByType<Terrain>();
-        if (terrain == null)
+        if (!ArenaBounds.TryCompute(out Vector3 center, out float radius))
         {
-            EditorUtility.DisplayDialog("Boundary Walls", "No Terrain found in the open scene.", "OK");
+            EditorUtility.DisplayDialog("Boundary Walls",
+                "No EnemySpawner with spawn points found in the open scene.", "OK");
             return;
         }
 
-        Vector3 origin = terrain.transform.position;
-        Vector3 size = terrain.terrainData.size; // x = width, z = length, y = max height
-
-        float minX = origin.x;
-        float maxX = origin.x + size.x;
-        float minZ = origin.z;
-        float maxZ = origin.z + size.z;
-        float centerY = origin.y + WallHeight * 0.5f;
-
         Transform parent = GetOrCreateParent();
+        ClearChildren(parent);
 
-        // North / South walls run along X, sit just outside the Z edges.
-        PlaceWall(parent, "Wall_North", new Vector3((minX + maxX) * 0.5f, centerY, maxZ),
-            new Vector3(size.x + WallThickness * 2f, WallHeight, WallThickness));
-        PlaceWall(parent, "Wall_South", new Vector3((minX + maxX) * 0.5f, centerY, minZ),
-            new Vector3(size.x + WallThickness * 2f, WallHeight, WallThickness));
+        float centerY = center.y + WallHeight * 0.5f;
+        // Slightly over-length each segment so neighboring segments overlap a bit and there's
+        // no gap at the seams for the player (or an arrow) to slip through.
+        float segmentLength = (2f * Mathf.PI * radius / Segments) * 1.1f;
 
-        // East / West walls run along Z, sit just outside the X edges.
-        PlaceWall(parent, "Wall_East", new Vector3(maxX, centerY, (minZ + maxZ) * 0.5f),
-            new Vector3(WallThickness, WallHeight, size.z + WallThickness * 2f));
-        PlaceWall(parent, "Wall_West", new Vector3(minX, centerY, (minZ + maxZ) * 0.5f),
-            new Vector3(WallThickness, WallHeight, size.z + WallThickness * 2f));
+        for (int i = 0; i < Segments; i++)
+        {
+            float angleDeg = i * (360f / Segments);
+            float angleRad = angleDeg * Mathf.Deg2Rad;
+            Vector3 pos = new Vector3(
+                center.x + Mathf.Sin(angleRad) * radius,
+                centerY,
+                center.z + Mathf.Cos(angleRad) * radius);
+
+            PlaceWallSegment(parent, $"Wall_{i:00}", pos, Quaternion.Euler(0f, angleDeg, 0f),
+                new Vector3(segmentLength, WallHeight, WallThickness));
+        }
 
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
 
         EditorUtility.DisplayDialog("Boundary Walls",
-            $"Placed 4 invisible boundary walls around the terrain ({size.x:0}m x {size.z:0}m).\n\n" +
+            $"Placed {Segments} invisible wall segments in a ring around the arena " +
+            $"(radius ~{radius:0}m, centered on the spawn points).\n\n" +
             "Save the scene to keep them.", "OK");
     }
 
@@ -69,26 +69,25 @@ public static class BoundaryWallsSetup
         return parent.transform;
     }
 
-    private static void PlaceWall(Transform parent, string name, Vector3 position, Vector3 scale)
+    // Removes whatever walls a previous run placed (e.g. the old 4-sided box layout) so
+    // re-running always leaves a clean, correctly-shaped ring behind.
+    private static void ClearChildren(Transform parent)
     {
-        Transform wall = parent.Find(name);
-        GameObject go;
-        if (wall != null)
-        {
-            go = wall.gameObject;
-        }
-        else
-        {
-            go = new GameObject(name, typeof(BoxCollider));
-            go.transform.SetParent(parent);
-            Undo.RegisterCreatedObjectUndo(go, "Create Boundary Wall");
-        }
+        for (int i = parent.childCount - 1; i >= 0; i--)
+            Undo.DestroyObjectImmediate(parent.GetChild(i).gameObject);
+    }
+
+    private static void PlaceWallSegment(Transform parent, string name, Vector3 position, Quaternion rotation, Vector3 scale)
+    {
+        GameObject go = new GameObject(name, typeof(BoxCollider));
+        go.transform.SetParent(parent);
+        Undo.RegisterCreatedObjectUndo(go, "Create Boundary Wall");
 
         go.transform.position = position;
+        go.transform.rotation = rotation;
         go.transform.localScale = scale;
 
         BoxCollider box = go.GetComponent<BoxCollider>();
-        if (box == null) box = go.AddComponent<BoxCollider>();
         box.isTrigger = false; // solid - physically blocks the player's CharacterController
         box.size = Vector3.one;
         box.center = Vector3.zero;

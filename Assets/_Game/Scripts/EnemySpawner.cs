@@ -29,6 +29,9 @@ public class EnemySpawner : MonoBehaviour
     /// <summary>Enemies still alive from the wave in progress. GameManager's coroutine waits on this.</summary>
     public int LiveEnemyCount => liveEnemyCount;
 
+    /// <summary>The wave's spawn points - used by BoundaryWallsSetup to fence in just the fighting area.</summary>
+    public Transform[] SpawnPoints => spawnPoints;
+
     /// <summary>Called by GameManager at startup to apply the difficulty's spawn-rate scaling.</summary>
     public void SetSpawnGapMultiplier(float multiplier)
     {
