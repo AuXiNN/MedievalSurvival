@@ -60,6 +60,11 @@ public static class GameSettings
 
     private static bool _loaded;
 
+    // The engine's own per-platform quality tier (e.g. "Low" on WebGL, "High" on Standalone),
+    // captured once before anything else has a chance to change it. Used by ResetToDefaults so
+    // "Restore Defaults" means "back to a safe baseline for this platform," not "max everything."
+    private static int _platformDefaultQualityLevel;
+
     /// <summary>Raised whenever any setting changes, so open UI can refresh itself.</summary>
     public static event System.Action OnSettingsChanged;
 
@@ -69,6 +74,7 @@ public static class GameSettings
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Bootstrap()
     {
+        _platformDefaultQualityLevel = QualitySettings.GetQualityLevel();
         Load();
         Apply();
     }
@@ -107,7 +113,7 @@ public static class GameSettings
         MasterVolume = 1f;
         MusicVolume = 1f;
         SfxVolume = 1f;
-        QualityLevel = QualitySettings.names.Length - 1;
+        QualityLevel = _platformDefaultQualityLevel;
         Fullscreen = true;
         ResolutionWidth = Screen.currentResolution.width;
         ResolutionHeight = Screen.currentResolution.height;

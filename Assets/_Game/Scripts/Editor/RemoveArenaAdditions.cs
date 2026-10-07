@@ -4,9 +4,9 @@ using UnityEngine;
 
 /// <summary>
 /// Undoes everything BoundaryWallsSetup and EnrichArenaEnvironment added to the scene: deletes
-/// the "Boundary Walls" and "Arena Environment Props" GameObjects, removes the tree instances
+/// the "Boundary Walls" and "Arena Environment Props" GameObjects, and removes the tree instances
 /// EnrichArenaEnvironment placed (identified by its marker color, so hand-placed trees are left
-/// alone), and reverses the grass height/width bump back toward its original values.
+/// alone).
 ///
 /// Run:  Tools ▸ Medieval Survival ▸ Remove Arena Additions     (then save the scene)
 /// </summary>
@@ -20,6 +20,7 @@ public static class RemoveArenaAdditions
         int removedObjects = 0;
         removedObjects += DestroyIfExists("Boundary Walls");
         removedObjects += DestroyIfExists("Arena Environment Props");
+        removedObjects += DestroyIfExists("Platform Surface Props");
 
         int treesRemoved = 0;
         Terrain terrain = Object.FindFirstObjectByType<Terrain>();
@@ -35,19 +36,6 @@ public static class RemoveArenaAdditions
             }
             data.treeInstances = kept.ToArray();
 
-            DetailPrototype[] details = data.detailPrototypes;
-            if (details != null)
-            {
-                for (int i = 0; i < details.Length; i++)
-                {
-                    details[i].minHeight /= 1.35f;
-                    details[i].maxHeight /= 1.35f;
-                    details[i].minWidth /= 1.15f;
-                    details[i].maxWidth /= 1.15f;
-                }
-                data.detailPrototypes = details;
-            }
-
             terrain.Flush();
             EditorUtility.SetDirty(data);
         }
@@ -55,8 +43,8 @@ public static class RemoveArenaAdditions
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
 
         EditorUtility.DisplayDialog("Remove Arena Additions",
-            $"Removed {removedObjects} object group(s), {treesRemoved} added tree(s), " +
-            "and reverted the grass size bump.\n\nSave the scene to keep this.", "OK");
+            $"Removed {removedObjects} object group(s) and {treesRemoved} added tree(s).\n\n" +
+            "Save the scene to keep this.", "OK");
     }
 
     private static int DestroyIfExists(string name)
